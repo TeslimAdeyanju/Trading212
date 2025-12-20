@@ -1,0 +1,16 @@
+# Ignore all subdirectories - each has its own Git repository
+CollborativeProject/
+ExperimentalRepo/
+GitHubRepo/
+MainClass/
+PorfolioRepo/
+Thedata/
+
+# Keep Python virtual environment ignored
+.venv/
+
+# Ignore macOS files
+.DS_Store
+
+# But track this .gitignore file itself
+!.gitignore
