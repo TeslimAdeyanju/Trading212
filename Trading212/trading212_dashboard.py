@@ -372,10 +372,12 @@ def render_simple(analytics: PortfolioAnalytics):
     sorted_pos = sorted(analytics.positions, key=lambda x: x["_value"], reverse=True)
     for p in sorted_pos:
         t = p["_ticker"].replace("_US_EQ", "").replace("_EQ", "")[:14]
+        pnl_str = f"{p['_pnl']:>+8.2f}"
+        pnl_pct_str = f"{p['_pnl_pct']:>+6.1f}%"
         print(
             f"  {t:<16} {cur}{p['_value']:>8.2f} {cur}{p['_cost']:>8.2f}  "
-            f"{_colour(p['_pnl'], f'{p[\"_pnl\"]:>+8.2f}')}  "
-            f"{_colour(p['_pnl_pct'], f'{p[\"_pnl_pct\"]:>+6.1f}%')}  "
+            f"{_colour(p['_pnl'], pnl_str)}  "
+            f"{_colour(p['_pnl_pct'], pnl_pct_str)}  "
             f"{_bar(p['_pnl_pct'])}  {p['_weight']:.1f}%"
         )
 
@@ -438,12 +440,12 @@ def render_rich(analytics: PortfolioAnalytics, dividends: list = None, orders: l
     pnl_style = "green" if analytics.total_pnl >= 0 else "red"
     cards = [
         Panel(
-            f"[bold bright_white]£{analytics.total_value:,.2f}[/]\n[dim]Total Value[/]",
+            f"[bold bright_white]{cur}{analytics.total_value:,.2f}[/]\n[dim]Total Value[/]",
             border_style="blue",
             width=22,
         ),
         Panel(
-            f"[bold bright_white]£{analytics.invested:,.2f}[/]\n[dim]Invested[/]",
+            f"[bold bright_white]{cur}{analytics.invested:,.2f}[/]\n[dim]Invested[/]",
             border_style="cyan",
             width=22,
         ),
@@ -453,7 +455,7 @@ def render_rich(analytics: PortfolioAnalytics, dividends: list = None, orders: l
             width=22,
         ),
         Panel(
-            f"[bold bright_white]£{analytics.cash:,.2f}[/]\n[dim]Cash ({analytics.cash / analytics.total_value * 100:.0f}%)[/]",
+            f"[bold bright_white]{cur}{analytics.cash:,.2f}[/]\n[dim]Cash ({analytics.cash / analytics.total_value * 100:.0f}%)[/]",
             border_style="yellow",
             width=22,
         ),
@@ -492,8 +494,8 @@ def render_rich(analytics: PortfolioAnalytics, dividends: list = None, orders: l
 
         table.add_row(
             t,
-            f"£{p['_value']:.2f}",
-            f"£{p['_cost']:.2f}",
+            f"{cur}{p['_value']:.2f}",
+            f"{cur}{p['_cost']:.2f}",
             f"[{pstyle}]{p['_pnl']:+.2f}[/]",
             f"[{pstyle}]{p['_pnl_pct']:+.1f}%[/]",
             f"{p['_weight']:.1f}%",
@@ -511,7 +513,7 @@ def render_rich(analytics: PortfolioAnalytics, dividends: list = None, orders: l
     for sector, data in analytics.sector_breakdown.items():
         pct = (data["value"] / analytics.total_value * 100) if analytics.total_value else 0
         sector_table.add_row(
-            sector, f"£{data['value']:.2f}", f"{pct:.1f}%", str(data["count"])
+            sector, f"{cur}{data['value']:.2f}", f"{pct:.1f}%", str(data["count"])
         )
 
     cur_table = Table(title="Currency Exposure", box=box.ROUNDED, title_style="bold yellow")
@@ -520,7 +522,7 @@ def render_rich(analytics: PortfolioAnalytics, dividends: list = None, orders: l
     cur_table.add_column("%", justify="right", width=7)
     for cur_code, val in analytics.currency_exposure.items():
         pct = (val / analytics.total_value * 100) if analytics.total_value else 0
-        cur_table.add_row(cur_code, f"£{val:.2f}", f"{pct:.1f}%")
+        cur_table.add_row(cur_code, f"{cur}{val:.2f}", f"{pct:.1f}%")
 
     console.print(Columns([sector_table, cur_table], padding=(0, 2)))
 
@@ -536,7 +538,7 @@ def render_rich(analytics: PortfolioAnalytics, dividends: list = None, orders: l
             paid = d.get("paidOn", d.get("date", ""))[:10]
             ticker = d.get("ticker", "")
             amount = d.get("amount", 0)
-            div_table.add_row(paid, ticker, f"[green]£{amount:.2f}[/]")
+            div_table.add_row(paid, ticker, f"[green]{cur}{amount:.2f}[/]")
         console.print(div_table)
 
     # ── Recent Orders ──
@@ -559,7 +561,7 @@ def render_rich(analytics: PortfolioAnalytics, dividends: list = None, orders: l
             status = o.get("status", "")
             style = "green" if float(qty or 0) > 0 else "red"
             ord_table.add_row(
-                filled, ticker, otype, f"[{style}]{qty}[/]", f"£{price}", status
+                filled, ticker, otype, f"[{style}]{qty}[/]", f"{cur}{price}", status
             )
         console.print(ord_table)
 
