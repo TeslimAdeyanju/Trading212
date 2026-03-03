@@ -1,0 +1,8 @@
+date,ticker,name,value,cost,pnl,pnl_pct,weight,currency
+2026-03-03,WISEl_EQ,Wise,6.92,6.96,-0.04,-0.57,8.1,GBP
+2026-03-03,AAPL_US_EQ,Apple,10.94,7.99,2.95,36.92,12.8,GBP
+2026-03-03,VWRPl_EQ,Vanguard FTSE All-World (Acc),11.93,10.00,1.93,19.30,14.0,GBP
+2026-03-03,DIS_US_EQ,Walt Disney,11.43,12.02,-0.59,-4.91,13.4,GBP
+2026-03-03,NVDA_US_EQ,Nvidia,17.37,18.03,-0.66,-3.66,20.3,GBP
+2026-03-03,MONYl_EQ,MONY Group,2.88,2.98,-0.10,-3.36,3.4,GBP
+2026-03-03,VUAGl_EQ,Vanguard S&P 500 (Acc),23.93,20.00,3.93,19.65,28.0,GBP

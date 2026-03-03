@@ -20,6 +20,7 @@ import time
 import os
 import json
 import csv
+from collections import deque
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -341,7 +342,68 @@ def _bar(pct: float, width: int = 12) -> str:
     return col + sym * filled + "░" * (width - filled) + "\033[0m"
 
 
-def render_simple(analytics: PortfolioAnalytics):
+def _sparkline_rich(values: list, width: int = 68):
+    """Return a coloured Rich Text sparkline from a list of floats."""
+    from rich.text import Text as RText
+
+    blocks = "▁▂▃▄▅▆▇█"
+    if len(values) < 2:
+        return RText("Accumulating data…", style="dim")
+
+    mn, mx = min(values), max(values)
+    spread = mx - mn
+
+    if len(values) > width:
+        step = len(values) / width
+        sampled = [values[int(i * step)] for i in range(width)]
+    else:
+        sampled = list(values)
+
+    line = RText()
+    for i, v in enumerate(sampled):
+        idx = int((v - mn) / spread * 7) if spread else 3
+        char = blocks[idx]
+        if i == 0:
+            style = "dim"
+        elif sampled[i] > sampled[i - 1]:
+            style = "bright_green"
+        elif sampled[i] < sampled[i - 1]:
+            style = "bright_red"
+        else:
+            style = "yellow"
+        line.append(char, style=style)
+    return line
+
+
+def _sparkline_ansi(values: list, width: int = 60) -> str:
+    """Return an ANSI-coloured sparkline string for the plain renderer."""
+    blocks = "▁▂▃▄▅▆▇█"
+    if len(values) < 2:
+        return "[accumulating data…]"
+
+    mn, mx = min(values), max(values)
+    spread = mx - mn
+
+    if len(values) > width:
+        step = len(values) / width
+        sampled = [values[int(i * step)] for i in range(width)]
+    else:
+        sampled = list(values)
+
+    result = ""
+    for i, v in enumerate(sampled):
+        idx = int((v - mn) / spread * 7) if spread else 3
+        char = blocks[idx]
+        if i > 0 and sampled[i] > sampled[i - 1]:
+            result += f"\033[92m{char}\033[0m"
+        elif i > 0 and sampled[i] < sampled[i - 1]:
+            result += f"\033[91m{char}\033[0m"
+        else:
+            result += char
+    return result
+
+
+def render_simple(analytics: PortfolioAnalytics, value_history=None):
     """Fallback renderer using plain ANSI escape codes."""
     os.system("cls" if os.name == "nt" else "clear")
     now = datetime.now().strftime("%d %b %Y  %H:%M:%S")
@@ -399,6 +461,26 @@ def render_simple(analytics: PortfolioAnalytics):
         pct = (val / analytics.total_value * 100) if analytics.total_value else 0
         print(f"  {cur_code:<8} {cur}{val:>8.2f}  ({pct:>5.1f}%)")
 
+    # ── Value Chart ──
+    if value_history and len(value_history) >= 2:
+        vals = [v for _, v in value_history]
+        session_change = vals[-1] - vals[0]
+        session_pct = (session_change / vals[0] * 100) if vals[0] else 0
+        high, low = max(vals), min(vals)
+        arrow = "▲" if session_change >= 0 else "▼"
+        col = "\033[92m" if session_change >= 0 else "\033[91m"
+        spark = _sparkline_ansi(vals)
+        print()
+        print("-" * 76)
+        print("  PORTFOLIO VALUE CHART")
+        print("-" * 76)
+        print(f"  Lo:{cur}{low:,.2f}  {spark}  Hi:{cur}{high:,.2f}")
+        print(
+            f"  Session: {col}{arrow} {cur}{abs(session_change):,.2f} "
+            f"({session_pct:+.1f}%)\033[0m"
+            f"  |  {len(vals)} data points"
+        )
+
     # Concentration warnings
     warnings = analytics.concentration_warning(threshold=25)
     if warnings:
@@ -422,7 +504,7 @@ def render_simple(analytics: PortfolioAnalytics):
     print()
 
 
-def render_rich(analytics: PortfolioAnalytics, dividends: list = None, orders: list = None):
+def render_rich(analytics: PortfolioAnalytics, dividends: list = None, orders: list = None, value_history=None):
     """Rich-powered terminal renderer with tables and panels."""
     console = Console()
     console.clear()
@@ -466,6 +548,47 @@ def render_rich(analytics: PortfolioAnalytics, dividends: list = None, orders: l
         ),
     ]
     console.print(Columns(cards, padding=(0, 1)))
+
+    # ── Value Chart ──
+    if value_history and len(value_history) >= 2:
+        vals = [v for _, v in value_history]
+        session_change = vals[-1] - vals[0]
+        session_pct = (session_change / vals[0] * 100) if vals[0] else 0
+        high, low = max(vals), min(vals)
+        change_style = "green" if session_change >= 0 else "red"
+        arrow = "▲" if session_change >= 0 else "▼"
+
+        spark = _sparkline_rich(vals)
+
+        chart_row = Text()
+        chart_row.append(f" {cur}{low:,.2f} ", style="dim")
+        chart_row.append_text(spark)
+        chart_row.append(f" {cur}{high:,.2f}", style="dim")
+
+        stats_row = Text()
+        stats_row.append(" Session: ", style="dim")
+        stats_row.append(
+            f"{arrow} {cur}{abs(session_change):,.2f} ({session_pct:+.1f}%)",
+            style=f"bold {change_style}",
+        )
+        stats_row.append(
+            f"   Hi: {cur}{high:,.2f}   Lo: {cur}{low:,.2f}   {len(vals)} pts",
+            style="dim",
+        )
+
+        combined = Text()
+        combined.append_text(chart_row)
+        combined.append("\n")
+        combined.append_text(stats_row)
+
+        console.print(
+            Panel(
+                combined,
+                title="[bold]Portfolio Value — Session Chart[/]",
+                border_style="blue",
+                padding=(0, 1),
+            )
+        )
 
     # ── Positions Table ──
     table = Table(
@@ -595,6 +718,15 @@ def main():
     snapshots = SnapshotManager()
     last_snapshot_date = None
 
+    # In-session value history — seed from last 30 days of snapshots
+    value_history: deque = deque(maxlen=120)
+    for row in snapshots.load_history(days=30):
+        try:
+            dt = datetime.fromisoformat(row["timestamp"])
+            value_history.append((dt, float(row["total_value"])))
+        except (ValueError, KeyError):
+            pass
+
     print("\n  🚀 Starting Trading 212 Dashboard...")
     print(f"  📡 Connecting to {BASE_URL}\n")
 
@@ -609,6 +741,7 @@ def main():
             continue
 
         analytics = PortfolioAnalytics(summary, positions or [])
+        value_history.append((datetime.now(), analytics.total_value))
 
         # Fetch historical data (less frequently)
         dividends = None
@@ -627,9 +760,9 @@ def main():
 
         # Render
         if RICH_AVAILABLE:
-            render_rich(analytics, dividends, orders)
+            render_rich(analytics, dividends, orders, value_history)
         else:
-            render_simple(analytics)
+            render_simple(analytics, value_history)
 
         time.sleep(REFRESH_SECONDS)
 
